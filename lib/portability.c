@@ -38,15 +38,7 @@ void xgetrandom(void *buf, unsigned buflen)
   // BSD/macOS only has getentropy(), but it's in <sys/random.h> (to be fair,
   // they were there first). getrandom() and getentropy() both went into glibc
   // in the same release (2.25 in 2017), so this test still works.
-#if __has_include(<sys/random.h>)
-  while (buflen) {
-    if (getentropy(buf, fd = buflen>256 ? 256 : buflen)) break;
-    buflen -= fd;
-    buf += fd;
-  }
-  if (!buflen) return;
-  if (errno!=ENOSYS) perror_exit("getrandom");
-#endif
+
   xreadall(fd = xopen("/dev/urandom", O_RDONLY), buf, buflen);
   close(fd);
 }
@@ -635,7 +627,7 @@ static int check_copy_file_range(void)
 #if defined(__ANDROID__)
   // Android's had the constant for years, but seccomp means you'll get
   // SIGSYS if you try the system call before 2023's Android U.
-  return (android_api_level() >= __ANDROID_API_U__) ? __NR_copy_file_range : 0;
+  return (android_api_level() >= 34) ? __NR_copy_file_range : 0;
 #elif defined(__NR_copy_file_range)
   // glibc added this constant in git at the end of 2017, shipped 2018-02.
   return __NR_copy_file_range;

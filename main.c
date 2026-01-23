@@ -176,13 +176,15 @@ void toy_singleinit(struct toy_list *which, char *argv[])
     char *buf = 0;
     int btype = _IOFBF;
 
+    mode_t new_umask = S_IWGRP | S_IWOTH;
+    umask(new_umask);
     toys.old_umask = umask(0);
     if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
 
     // Try user's locale, but if that isn't UTF-8 merge in a UTF-8 locale's
     // character type data. (Fall back to en_US for MacOS.)
     setlocale(LC_CTYPE, "");
-    if (strcmp("UTF-8", nl_langinfo(CODESET)))
+    if (1)
       uselocale(newlocale(LC_CTYPE_MASK, "C.UTF-8", 0) ? :
         newlocale(LC_CTYPE_MASK, "en_US.UTF-8", 0));
 
@@ -305,7 +307,7 @@ void toybox_main(void)
   xputc('\n');
 }
 
-int main(int argc, char *argv[])
+int lib_toybox_main(int argc, char *argv[])
 {
   // don't segfault if our environment is crazy
   // TODO mooted by kernel commit dcd46d897adb7 5.17 kernel Jan 2022

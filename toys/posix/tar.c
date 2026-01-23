@@ -135,6 +135,187 @@ static unsigned long long otoi(char *str, unsigned len)
   return val;
 }
 #define OTOI(x) otoi(x, sizeof(x))
+/*
+static int move_and_symlink_path(Tracee *tracee, Reg sysarg)
+{
+    char original[PATH_MAX];
+    char intermediate[PATH_MAX];
+    char new_intermediate[PATH_MAX];
+    char final[PATH_MAX];
+    char new_final[PATH_MAX];
+    char * name;
+    const char * l2s_directory;
+    struct stat statl;
+    ssize_t size;
+    int status;
+    int link_count;
+    int first_link = 1;
+    int intermediate_suffix = 1;
+
+    size = read_string(tracee, original, peek_reg(tracee, CURRENT, sysarg), PATH_MAX);
+    if (size < 0)
+        return size;
+    if (size >= PATH_MAX)
+        return -ENAMETOOLONG;
+
+    status = lstat(original, &statl);
+    if (status < 0)
+        return status;
+    if (S_ISDIR(statl.st_mode))
+        return -EPERM;
+
+    if (S_ISLNK(statl.st_mode)) {
+        size = my_readlink(original, intermediate);
+        if (size < 0)
+            return size;
+
+        name = strrchr(intermediate, '/');
+        if (name == NULL)
+            name = intermediate;
+        else
+            name++;
+
+        if (strncmp(name, PREFIX, strlen(PREFIX)) == 0)
+            first_link = 0;
+    } else {
+        name = strrchr(original,'/');
+        if (name == NULL)
+*/
+
+#define PREFIX ".proot.l2s."
+
+static int my_readlink(const char symlink[PATH_MAX], char value[PATH_MAX])
+{
+    ssize_t size;
+
+    size = readlink(symlink, value, PATH_MAX);
+    if (size < 0)
+        return size;
+    if (size >= PATH_MAX)
+        return -ENAMETOOLONG;
+    value[size] = '\0';
+
+    return 0;
+}
+
+int proot_link(char *__old_path, char *__new_path) {
+    char original[PATH_MAX];
+    char intermediate[PATH_MAX];
+    char new_intermediate[PATH_MAX];
+    char final[PATH_MAX];
+    char new_final[PATH_MAX];
+    char * name;
+    const char * l2s_directory;
+    struct stat statl;
+    ssize_t size;
+    int status;
+    int link_count;
+    int first_link = 1;
+    int intermediate_suffix = 1;
+
+    strcpy(original, __old_path);
+
+    status = lstat(original, &statl);
+    if (status < 0)
+        return status;
+    if (S_ISDIR(statl.st_mode))
+        return -EPERM;
+
+    if (S_ISLNK(statl.st_mode)) {
+        size = my_readlink(original, intermediate);
+        if (size < 0)
+            return size;
+
+        name = strrchr(intermediate, '/');
+        if (name == NULL)
+            name = intermediate;
+        else
+            name++;
+
+        if (strncmp(name, PREFIX, strlen(PREFIX)) == 0)
+            first_link = 0;
+    } else {
+        /* compute new name */
+        name = strrchr(original,'/');
+        if (name == NULL)
+            name = original;
+        else
+            name++;
+
+        l2s_directory = getenv("PROOT_L2S_DIR");
+        if (l2s_directory != NULL && l2s_directory[0]) {
+            if (strlen(PREFIX) + strlen(l2s_directory) + (strlen(original) - strlen(name)) + 6 >= PATH_MAX)
+                return -ENAMETOOLONG;
+
+            strcpy(intermediate, l2s_directory);
+            if (l2s_directory[strlen(l2s_directory) - 1] != '/') {
+                strcat(intermediate, "/");
+            }
+        } else {
+            if (strlen(PREFIX) + strlen(original) + 5 >= PATH_MAX)
+                return -ENAMETOOLONG;
+
+            strncpy(intermediate, original, strlen(original) - strlen(name));
+            intermediate[strlen(original) - strlen(name)] = '\0';
+        }
+        strcat(intermediate, PREFIX);
+        strcat(intermediate, name);
+    }
+
+    if (first_link) {
+        /*Move the original content to the new path. */
+        do {
+            sprintf(new_intermediate, "%s%04d", intermediate, intermediate_suffix);
+            intermediate_suffix++;
+        } while ((access(new_intermediate,F_OK) != -1) && (intermediate_suffix < 1000));
+        strcpy(intermediate, new_intermediate);
+
+        strcpy(final, intermediate);
+        strcat(final, ".0002");
+        status = rename(original, final);
+        if (status < 0)
+            return status;
+
+        /* Symlink the intermediate to the final file.  */
+        status = symlink(final, intermediate);
+        if (status < 0)
+            return status;
+
+        /* Symlink the original path to the intermediate one.  */
+        status = symlink(intermediate, original);
+        if (status < 0)
+            return status;
+    } else {
+        /*Move the original content to new location, by incrementing count at end of path. */
+        size = my_readlink(intermediate, final);
+        if (size < 0)
+            return size;
+
+        link_count = atoi(final + strlen(final) - 4);
+        link_count++;
+
+        strncpy(new_final, final, strlen(final) - 4);
+        sprintf(new_final + strlen(final) - 4, "%04d", link_count);
+
+        status = rename(final, new_final);
+        if (status < 0)
+            return status;
+        strcpy(final, new_final);
+        /* Symlink the intermediate to the final file.  */
+        status = unlink(intermediate);
+        if (status < 0)
+            return status;
+        status = symlink(final, intermediate);
+        if (status < 0)
+            return status;
+    }
+
+    status = symlink(intermediate, __new_path);
+    if (status < 0)
+        return status;
+
+    return 0;
+}
 
 static void write_prefix_block(char *data, int len, char type)
 {
@@ -636,7 +817,7 @@ static void extract_to_disk(char *name)
   if (S_ISREG(ala)) {
     // hardlink?
     if (TT.hdr.link_target) {
-      if (link(TT.hdr.link_target, name))
+      if (proot_link(TT.hdr.link_target, name)) //CCX
         return perror_msg("can't link '%s' -> '%s'", name, TT.hdr.link_target);
     // write contents
     } else {

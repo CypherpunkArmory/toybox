@@ -8,6 +8,7 @@
  */
 
 #include "toys.h"
+#include <pthread.h>
 
 // strcpy and strncat with size checking. Size is the total space in "dest",
 // including null terminator. Exit if there's not enough space for the string
@@ -39,7 +40,14 @@ void _xexit(void)
 {
   if (toys.rebound) siglongjmp(*toys.rebound, 1);
 
-  _exit(toys.exitval);
+  char *return_char = malloc(sizeof(char));
+  if (return_char == NULL) {
+      perror("malloc failed");
+      pthread_exit(NULL);
+  }
+  *return_char = toys.exitval;
+  pthread_exit((void*)return_char);
+  //CCX _exit(toys.exitval);
 }
 
 void xexit(void)
