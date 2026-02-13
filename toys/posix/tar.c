@@ -135,52 +135,6 @@ static unsigned long long otoi(char *str, unsigned len)
   return val;
 }
 #define OTOI(x) otoi(x, sizeof(x))
-/*
-static int move_and_symlink_path(Tracee *tracee, Reg sysarg)
-{
-    char original[PATH_MAX];
-    char intermediate[PATH_MAX];
-    char new_intermediate[PATH_MAX];
-    char final[PATH_MAX];
-    char new_final[PATH_MAX];
-    char * name;
-    const char * l2s_directory;
-    struct stat statl;
-    ssize_t size;
-    int status;
-    int link_count;
-    int first_link = 1;
-    int intermediate_suffix = 1;
-
-    size = read_string(tracee, original, peek_reg(tracee, CURRENT, sysarg), PATH_MAX);
-    if (size < 0)
-        return size;
-    if (size >= PATH_MAX)
-        return -ENAMETOOLONG;
-
-    status = lstat(original, &statl);
-    if (status < 0)
-        return status;
-    if (S_ISDIR(statl.st_mode))
-        return -EPERM;
-
-    if (S_ISLNK(statl.st_mode)) {
-        size = my_readlink(original, intermediate);
-        if (size < 0)
-            return size;
-
-        name = strrchr(intermediate, '/');
-        if (name == NULL)
-            name = intermediate;
-        else
-            name++;
-
-        if (strncmp(name, PREFIX, strlen(PREFIX)) == 0)
-            first_link = 0;
-    } else {
-        name = strrchr(original,'/');
-        if (name == NULL)
-*/
 
 #define PREFIX ".proot.l2s."
 
@@ -196,6 +150,23 @@ static int my_readlink(const char symlink[PATH_MAX], char value[PATH_MAX])
     value[size] = '\0';
 
     return 0;
+}
+
+int proot_symlink(char *__old_path, char *__new_path) {
+    char original[PATH_MAX];
+    char cwd[PATH_MAX];
+
+    if (__old_path[0] == '/') {
+        strcpy(original, __old_path);
+    } else if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        strcpy(original, cwd);
+        strcat(original,"/");
+        strcat(original, __old_path);
+    } else {
+        return -1;
+    }
+
+    return symlink(original, __new_path);
 }
 
 int proot_link(char *__old_path, char *__new_path) {
@@ -277,12 +248,12 @@ int proot_link(char *__old_path, char *__new_path) {
             return status;
 
         /* Symlink the intermediate to the final file.  */
-        status = symlink(final, intermediate);
+        status = proot_symlink(final, intermediate);
         if (status < 0)
             return status;
 
         /* Symlink the original path to the intermediate one.  */
-        status = symlink(intermediate, original);
+        status = proot_symlink(intermediate, original);
         if (status < 0)
             return status;
     } else {
@@ -305,12 +276,12 @@ int proot_link(char *__old_path, char *__new_path) {
         status = unlink(intermediate);
         if (status < 0)
             return status;
-        status = symlink(final, intermediate);
+        status = proot_symlink(final, intermediate);
         if (status < 0)
             return status;
     }
 
-    status = symlink(intermediate, __new_path);
+    status = proot_symlink(intermediate, __new_path);
     if (status < 0)
         return status;
 
@@ -854,7 +825,9 @@ static void extract_to_disk(char *name)
     if (lchown(name, u, g)) perror_msg("chown %d:%d '%s'", u, g, name);;
   }
 
-  if (!S_ISLNK(ala)) chmod(name, FLAG(p) ? ala : ala&0777&~toys.old_umask);
+  if (!S_ISLNK(ala)) {
+      chmod(name, ala);
+  }
 
   // Apply mtime.
   if (!FLAG(m)) {

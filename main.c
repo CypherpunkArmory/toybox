@@ -179,7 +179,8 @@ void toy_singleinit(struct toy_list *which, char *argv[])
     mode_t new_umask = S_IWGRP | S_IWOTH;
     umask(new_umask);
     toys.old_umask = umask(0);
-    if (!(which->flags & TOYFLAG_UMASK)) umask(toys.old_umask);
+    if (!(which->flags & TOYFLAG_UMASK))
+        umask(toys.old_umask);
 
     // Try user's locale, but if that isn't UTF-8 merge in a UTF-8 locale's
     // character type data. (Fall back to en_US for MacOS.)
@@ -322,7 +323,7 @@ int lib_toybox_main(int argc, char *argv[])
     toys.stacktop = &stack_start;
   }
 
-  if (CFG_TOYBOX) {
+  if (0) {
     // Call the multiplexer with argv[] as its arguments so it can toy_find()
     toys.argv = argv-1;
     toybox_main();
