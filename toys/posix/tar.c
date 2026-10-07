@@ -825,8 +825,13 @@ static void extract_to_disk(char *name)
     if (lchown(name, u, g)) perror_msg("chown %d:%d '%s'", u, g, name);;
   }
 
+  // CCX: directories stay owner-writable. The mode is applied the moment a directory is
+  // created, before anything is extracted into it, and this runs as the app's own unprivileged
+  // uid -- so a directory shipped without owner write (Fedora's /usr/bin and /usr/lib are 0555)
+  // silently swallowed every file meant to go inside it. Under proot the "root" user is that
+  // same uid too, so a 0555 /usr/bin would also stop the distro's own package manager.
   if (!S_ISLNK(ala)) {
-      chmod(name, ala);
+      chmod(name, S_ISDIR(ala) ? (ala | 0700) : ala);
   }
 
   // Apply mtime.
