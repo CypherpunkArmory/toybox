@@ -690,8 +690,16 @@ static int dirflush(char *name, int isdir)
   char *s = 0, *ss;
 
   // Barf if name not in TT.cwd
+  //
+  // CCX: the last component is never resolved, for files as well as directories. Resolving it
+  // followed an existing symlink at the path, so an entry replacing an absolute symlink from an
+  // earlier OCI layer (bin/su -> /bin/busybox, replaced by bin/su -> /bin/bbsuid in Alpine's
+  // busybox-suid layer) was checked against wherever that link pointed -- outside TT.cwd -- and
+  // silently skipped. Nothing is written through it anyway: extract_to_disk() removes an
+  // existing non-directory before creating the entry. Symlinks in the parent path are still
+  // resolved and checked, which is what keeps extraction inside TT.cwd.
   if (name) {
-    if (!(ss = s = xabspath(name, isdir ? ABS_LAST : 0))) {
+    if (!(ss = s = xabspath(name, ABS_LAST))) {
       error_msg("'%s' bad symlink", name);
 
       return 1;
